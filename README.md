@@ -74,26 +74,26 @@ import (
 
 func main() {
     ld, err := s3log.New(context.Background(), &s3log.Config{
-			Bucket:       "ichigeki-example-come",
-			ObjectPrefix: "logs/",
-	})
-	if err != nil {
-		log.Fatal("s3 log destination:", err)
-	}
-	h := &ichigeki.Hissatsu{
-		Name:           "hogehoge",
-		LogDestination: ld,
-		ConfirmDialog:  ichigeki.Bool(true),
-		Script: func(_ context.Context, stdout io.Writer, stderr io.Writer) error {
+        Bucket:       "ichigeki-example-come",
+        ObjectPrefix: "logs/",
+    })      
+    if err != nil {
+        log.Fatal("s3 log destination:", err)
+    }
+    h := &ichigeki.Hissatsu{
+        Name:           "hogehoge",
+        LogDestination: ld,
+        ConfirmDialog:  ichigeki.Bool(true),
+        Script: func(_ context.Context, stdout io.Writer, stderr io.Writer) error {
             fmt.Fprintln(stdout, "this message out to stdout") 
             fmt.Fprintln(stderr, "this message out to stderr") 
-			return nil 
-		},
-	}
+            return nil 
+        }, 
+    }
 
-	if err := h.Execute(); err != nil {
-		log.Fatal(err)
-	}
+    if err := h.Execute(); err != nil {
+        log.Fatal(err)
+    }
 }
 ```
 
@@ -101,4 +101,4 @@ func main() {
 
 MIT License
 
-Copyright (c) 2021 IKEDA Masashi
+Copyright (c) 2022 IKEDA Masashi
