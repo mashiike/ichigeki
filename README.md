@@ -1,5 +1,6 @@
 # ichigeki
 
+[![Documentation](https://godoc.org/github.com/mashiike/ichigeki?status.svg)](https://godoc.org/github.com/mashiike/ichigeki)
 ![Latest GitHub release](https://img.shields.io/github/release/mashiike/ichigeki.svg)
 ![Github Actions test](https://github.com/mashiike/ichigeki/workflows/Test/badge.svg?branch=main)
 [![Go Report Card](https://goreportcard.com/badge/mashiike/ichigeki)](https://goreportcard.com/report/mashiike/ichigeki)
