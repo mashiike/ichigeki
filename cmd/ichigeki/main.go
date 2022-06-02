@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	defaultConfig = "~/.config/ichigeki/default.toml"
+	defaultConfig = ".config/ichigeki/default.toml"
 )
 
 func main() {
@@ -31,9 +31,14 @@ func main() {
 		noConfirmDialog bool
 		execDate        string
 	)
-	if defaultConfigExists() {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		log.Fatal("can not get user config dir: ", err)
+	}
+	defaultConfigPath := filepath.Join(homeDir, defaultConfig)
+	if configExists(defaultConfigPath) {
 		var err error
-		cfg, err = loadConfig(defaultConfig)
+		cfg, err = loadConfig(defaultConfigPath)
 		if err != nil {
 			log.Fatal("default config load failed:", err)
 		}
@@ -184,7 +189,7 @@ func loadConfig(path string) (*config, error) {
 	return cfg, nil
 }
 
-func defaultConfigExists() bool {
-	_, err := os.Stat(defaultConfig)
+func configExists(path string) bool {
+	_, err := os.Stat(path)
 	return err == nil
 }
