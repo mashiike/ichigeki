@@ -23,6 +23,10 @@ const (
 )
 
 func main() {
+	flag.CommandLine.Usage = func() {
+		fmt.Fprintln(flag.CommandLine.Output(), "ichigeki [options] -- (commands)")
+		flag.CommandLine.PrintDefaults()
+	}
 	var (
 		cfg             *config
 		name            string
@@ -126,8 +130,7 @@ func main() {
 		originalArgs = originalArgs[1:]
 	}
 	if len(originalArgs) == 0 {
-		fmt.Fprintln(os.Stderr, "ichigeki [options] -- (commands)")
-		flag.PrintDefaults()
+		flag.CommandLine.Usage()
 		log.Fatal("commands not found")
 	}
 	if name == "" {

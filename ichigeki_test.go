@@ -65,7 +65,6 @@ func TestHissatsuPromptNo(t *testing.T) {
 }
 
 func TestHissatsuDoubleRun(t *testing.T) {
-	os.Setenv("TZ", "UTC")
 	restore := flextime.Set(time.Date(2022, 6, 5, 12, 0, 0, 0, time.Local))
 	defer restore()
 	tempDir := t.TempDir()
