@@ -103,6 +103,7 @@ func (h *Hissatsu) ExecuteWithContext(ctx context.Context) (err error) {
 		return
 	}
 
+	fmt.Fprintf(os.Stderr, "log output to `%s`\n", h.LogDestination.String())
 	if *h.ConfirmDialog {
 		fmt.Fprintf(os.Stderr, h.DialogMessage+" [y/n]:", h.Name)
 		reader := bufio.NewReader(h.PromptInput)
@@ -117,7 +118,6 @@ func (h *Hissatsu) ExecuteWithContext(ctx context.Context) (err error) {
 			return
 		}
 	}
-	fmt.Fprintf(os.Stderr, "log output to `%s`\n", h.LogDestination.String())
 	err = h.running(ctx)
 	return
 }
@@ -134,6 +134,7 @@ func (h *Hissatsu) running(ctx context.Context) error {
 		w = io.MultiWriter(stdout, stderr)
 	}
 
+	var err error
 	fmt.Fprintln(w, "# This log is generated dy github.com/mashiike/ichigeki.Hissatsu")
 	fmt.Fprintf(w, "name: %s\n", h.Name)
 	fmt.Fprintf(w, "start: %s\n", flextime.Now().In(time.Local).Format(time.RFC3339))
@@ -141,13 +142,17 @@ func (h *Hissatsu) running(ctx context.Context) error {
 	defer func() {
 		fmt.Fprint(w, "\n---\n")
 		fmt.Fprintf(w, "end: %s\n", flextime.Now().In(time.Local).Format(time.RFC3339))
+		if err != nil {
+			fmt.Fprintf(w, "error: %s\n", err.Error())
+		}
 		h.LogDestination.Cleanup(ctx)
 	}()
-	if err := h.Script(
+	err = h.Script(
 		ctx,
 		io.MultiWriter(stdout, os.Stdout),
 		io.MultiWriter(stderr, os.Stderr),
-	); err != nil {
+	)
+	if err != nil {
 		return err
 	}
 	fmt.Fprintln(os.Stderr, "")
@@ -207,4 +212,64 @@ func (f *LocalFile) SetName(name string) {
 
 func (f *LocalFile) String() string {
 	return filepath.Join(f.path(), f.name+f.logFilePostfix())
+}
+
+type MultipleLogDestination []LogDestination
+
+func (mld MultipleLogDestination) AlreadyExists(ctx context.Context) (bool, error) {
+	if len(mld) == 0 {
+		return false, errors.New("no log destination")
+	}
+	for _, ld := range mld {
+		if exists, err := ld.AlreadyExists(ctx); err != nil {
+			return false, fmt.Errorf("%s: %w", ld.String(), err)
+		} else if exists {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+func (mld MultipleLogDestination) NewWriter(ctx context.Context) (io.Writer, io.Writer, error) {
+	stdouts := make([]io.Writer, 0, len(mld))
+	stderrs := make([]io.Writer, 0, len(mld))
+	diff := false
+	for _, ld := range mld {
+		stdout, stderr, err := ld.NewWriter(ctx)
+		if err != nil {
+			return nil, nil, fmt.Errorf("%s:%d", ld.String(), err)
+		}
+		if stdout == stderr {
+			stdouts = append(stdouts, stdout)
+			stderrs = append(stderrs, stdout)
+		} else {
+			diff = true
+			stdouts = append(stdouts, stdout)
+			stderrs = append(stderrs, stderr)
+		}
+	}
+	if diff {
+		return io.MultiWriter(stdouts...), io.MultiWriter(stderrs...), nil
+	}
+	w := io.MultiWriter(stdouts...)
+	return w, w, nil
+}
+
+func (mld MultipleLogDestination) Cleanup(ctx context.Context) {
+	for _, ld := range mld {
+		ld.Cleanup(ctx)
+	}
+}
+
+func (mld MultipleLogDestination) SetName(name string) {
+	for _, ld := range mld {
+		ld.SetName(name)
+	}
+}
+
+func (mld MultipleLogDestination) String() string {
+	strs := make([]string, 0, len(mld))
+	for _, ld := range mld {
+		strs = append(strs, ld.String())
+	}
+	return fmt.Sprintf("multiple log destination%v", strs)
 }

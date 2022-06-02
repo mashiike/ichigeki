@@ -1,0 +1,6 @@
+[s3]
+bucket = "example-com"
+object_prefix = "hoge/"
+
+[file]
+dir = "./"
