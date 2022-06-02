@@ -68,8 +68,8 @@ import (
     "fmt"
     "log"
 
-	"github.com/mashiike/ichigeki"
-	"github.com/mashiike/ichigeki/s3log"
+    "github.com/mashiike/ichigeki"
+    "github.com/mashiike/ichigeki/s3log"
 )
 
 
