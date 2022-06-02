@@ -1,3 +1,5 @@
+confirm_dialog = false
+
 [s3]
 bucket = "example-com"
 object_prefix = "hoge/"

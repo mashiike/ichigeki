@@ -51,7 +51,7 @@ func main() {
 	flag.BoolVar(&noConfirmDialog, "no-confirm-dialog", false, "do confirm")
 	flag.Parse()
 	if noConfirmDialog {
-		cfg.ConfirmDialog = false
+		cfg.ConfirmDialog = ichigeki.Bool(false)
 	}
 
 	if s3URLPrefix != "" {
@@ -132,6 +132,7 @@ func main() {
 	h := &ichigeki.Hissatsu{
 		Name:           name,
 		LogDestination: logDestination,
+		ConfirmDialog:  cfg.ConfirmDialog,
 		Script: func(ctx context.Context, stdout io.Writer, stderr io.Writer) error {
 			cmd := exec.CommandContext(ctx, originalArgs[0], originalArgs[1:]...)
 			cmd.Stdin = os.Stdin
@@ -154,7 +155,7 @@ func main() {
 }
 
 type config struct {
-	ConfirmDialog bool        `toml:"confirm_dialog"`
+	ConfirmDialog *bool       `toml:"confirm_dialog"`
 	File          *fileConfig `toml:"file"`
 	S3            *s3Config   `toml:"s3"`
 }

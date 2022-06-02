@@ -3,6 +3,7 @@ package main
 import (
 	"testing"
 
+	"github.com/mashiike/ichigeki"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,6 +26,7 @@ func TestConfigLoadOnlyS3(t *testing.T) {
 	cfg, err := loadConfig("testdata/s3_only.toml")
 	require.NoError(t, err)
 	expected := &config{
+		ConfirmDialog: ichigeki.Bool(false),
 		S3: &s3Config{
 			Bucket:       "example-com",
 			ObjectPrefix: "hoge/",
