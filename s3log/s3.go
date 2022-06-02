@@ -93,7 +93,7 @@ func (ld *LogDestination) SetName(name string) {
 }
 
 func (ld *LogDestination) String() string {
-	return fmt.Sprintf("s3://%s%s", ld.cfg.Bucket, ld.object())
+	return fmt.Sprintf("s3://%s/%s", ld.cfg.Bucket, ld.object())
 }
 
 type s3Writer struct {
