@@ -19,12 +19,14 @@ import (
 )
 
 const (
+	Version       = "current"
 	defaultConfig = ".config/ichigeki/default.toml"
 )
 
 func main() {
 	flag.CommandLine.Usage = func() {
 		fmt.Fprintln(flag.CommandLine.Output(), "ichigeki [options] -- (commands)")
+		fmt.Fprintln(flag.CommandLine.Output(), "version:", Version)
 		flag.CommandLine.PrintDefaults()
 	}
 	var (
@@ -142,10 +144,13 @@ func main() {
 		LogDestination: logDestination,
 		ConfirmDialog:  cfg.ConfirmDialog,
 		Script: func(ctx context.Context, stdout io.Writer, stderr io.Writer) error {
+			env := os.Environ()
+			env = append(env, `ICHIGEKI_EXECUTION_ENV=ichigeki `+Version+``)
 			cmd := exec.CommandContext(ctx, originalArgs[0], originalArgs[1:]...)
 			cmd.Stdin = os.Stdin
 			cmd.Stdout = stdout
 			cmd.Stderr = stderr
+			cmd.Env = env
 			return cmd.Run()
 		},
 	}
@@ -153,12 +158,12 @@ func main() {
 	if execDate != "" {
 		t, err := time.Parse("2006-01-02", execDate)
 		if err != nil {
-			log.Fatal("exec date parse failed: ", err)
+			log.Fatal("[error] exec date parse failed: ", err)
 		}
 		h.ExecDate = t
 	}
 	if err := h.ExecuteWithContext(ctx); err != nil {
-		log.Fatal(err)
+		log.Fatal("[error] ", err)
 	}
 }
 

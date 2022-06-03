@@ -31,6 +31,21 @@ object_prefix = "logs/"
 $ ichigeki --exec-date 2022-06-01 -- your_command
 ```
 
+If you want to check whether the command is started using ichigeki on the side of the command to be started, you can check the environment variable named ICHIGEKI_EXECUTION_ENV. If version information is stored, it is invoked via ichigeki command.
+
+sample.sh
+```shell
+#!/bin/bash
+
+echo $ICHIGEKI_EXECUTION_ENV
+```
+
+```shell
+$ ichigeki --s3-url-prefix s3://ichigeki-example-com/logs/  -- ./sample.sh           
+[info] log output to `s3://infra-dev/ichigeki-logs/sample.sh.log`
+ichigeki v0.2.0 
+```
+
 ### Install 
 #### Homebrew (macOS and Linux)
 

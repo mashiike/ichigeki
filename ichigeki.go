@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -51,7 +52,7 @@ func (h *Hissatsu) Validate() error {
 	}
 	if h.LogDestination == nil {
 		h.LogDestination = &LocalFile{}
-		fmt.Fprintln(os.Stderr, "[warn] LogDestination is not specified. use default LocalFile")
+		log.Println("[warn] LogDestination is not specified. use default LocalFile")
 	}
 	h.LogDestination.SetName(h.Name)
 
@@ -79,10 +80,10 @@ func (h *Hissatsu) ExecuteWithContext(ctx context.Context) (err error) {
 		if rec := recover(); rec != nil {
 			switch {
 			case h.inCompilation == false:
-				fmt.Fprintln(os.Stderr, "script is not complete, but panicked")
+				log.Println("[info] script is not complete, but panicked")
 				panic(rec)
 			default:
-				fmt.Fprintf(os.Stderr, "[error] %s", rec)
+				log.Printf("[error] %s", rec)
 			}
 		}
 	}()
@@ -103,7 +104,7 @@ func (h *Hissatsu) ExecuteWithContext(ctx context.Context) (err error) {
 		return
 	}
 
-	fmt.Fprintf(os.Stderr, "log output to `%s`\n", h.LogDestination.String())
+	log.Printf("[info] log output to `%s`\n", h.LogDestination.String())
 	if *h.ConfirmDialog {
 		fmt.Fprintf(os.Stderr, h.DialogMessage+" [y/n]:", h.Name)
 		reader := bufio.NewReader(h.PromptInput)

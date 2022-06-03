@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"strings"
 	"sync"
@@ -125,10 +126,10 @@ func (w *s3Writer) Write(p []byte) (int, error) {
 
 func (w *s3Writer) Close() {
 	if err := w.w.Close(); err != nil {
-		fmt.Fprintf(os.Stderr, "pipe writer close failed: %s", err.Error())
+		log.Printf("[error] pipe writer close failed: %s", err.Error())
 	}
 	w.wg.Wait()
 	if w.err != nil {
-		fmt.Fprintf(os.Stderr, "upload finish failed: %s", w.err.Error())
+		log.Printf("[error] upload finish failed: %s", w.err.Error())
 	}
 }
