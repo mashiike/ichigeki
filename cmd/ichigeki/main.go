@@ -151,7 +151,7 @@ func main() {
 			cmd.Stdout = stdout
 			cmd.Stderr = stderr
 			cmd.Env = env
-			return cmd.Run()
+			return fmt.Errorf("command runtime error: %w", cmd.Run())
 		},
 	}
 
