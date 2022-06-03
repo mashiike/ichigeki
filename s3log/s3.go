@@ -105,12 +105,16 @@ type s3Writer struct {
 
 func newS3Writer(client manager.UploadAPIClient, input *s3.PutObjectInput) *s3Writer {
 	uploader := manager.NewUploader(client)
-	w := &s3Writer{}
-	input.Body, w.w = io.Pipe()
+	pr, pw := io.Pipe()
+	w := &s3Writer{
+		w: pw,
+	}
 	w.wg.Add(1)
 	go func() {
 		defer w.wg.Done()
+		input.Body = pr
 		_, w.err = uploader.Upload(context.Background(), input)
+		pr.Close()
 	}()
 	return w
 }
