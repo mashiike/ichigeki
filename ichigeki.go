@@ -26,6 +26,7 @@ type LogDestination interface {
 type Hissatsu struct {
 	Name           string
 	Logger         *log.Logger
+	Args           []string
 	Description    string
 	ExecDate       time.Time
 	ConfirmDialog  *bool
@@ -41,8 +42,14 @@ func (h *Hissatsu) Validate() error {
 	if h.Script == nil {
 		return errors.New("Script is required")
 	}
+	if h.Args == nil {
+		h.Args = os.Args
+	}
 	if h.Name == "" {
-		h.Name = filepath.Base(os.Args[0])
+		if len(h.Args) == 0 {
+			return errors.New("no arguments")
+		}
+		h.Name = filepath.Base(h.Args[0])
 	}
 	if h.ExecDate.IsZero() {
 		h.ExecDate = flextime.Now().In(time.Local)

@@ -127,26 +127,25 @@ func main() {
 	} else {
 		logDestination = ichigeki.MultipleLogDestination(logDestinations)
 	}
-	originalArgs := flag.Args()
+	var args []string
 	if flag.Arg(0) == "--" {
-		originalArgs = originalArgs[1:]
+		args = flag.Args()[1:]
+	} else {
+		args = flag.Args()
 	}
-	if len(originalArgs) == 0 {
+	if len(args) == 0 {
 		flag.CommandLine.Usage()
 		log.Fatal("commands not found")
 	}
-	if name == "" {
-		name = filepath.Base(originalArgs[0])
-	}
 
 	h := &ichigeki.Hissatsu{
-		Name:           name,
+		Args:           args,
 		LogDestination: logDestination,
 		ConfirmDialog:  cfg.ConfirmDialog,
 		Script: func(ctx context.Context, stdout io.Writer, stderr io.Writer) error {
 			env := os.Environ()
 			env = append(env, `ICHIGEKI_EXECUTION_ENV=ichigeki `+Version+``)
-			cmd := exec.CommandContext(ctx, originalArgs[0], originalArgs[1:]...)
+			cmd := exec.CommandContext(ctx, args[0], args[1:]...)
 			cmd.Stdin = os.Stdin
 			cmd.Stdout = stdout
 			cmd.Stderr = stderr
