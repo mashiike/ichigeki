@@ -2,7 +2,9 @@ package ichigeki
 
 import (
 	"bufio"
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -10,9 +12,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/Songmu/flextime"
+)
+
+const (
+	dateFormant = "2006-01-02"
 )
 
 type LogDestination interface {
@@ -24,16 +31,17 @@ type LogDestination interface {
 }
 
 type Hissatsu struct {
-	Name           string
-	Logger         *log.Logger
-	Args           []string
-	Description    string
-	ExecDate       time.Time
-	ConfirmDialog  *bool
-	LogDestination LogDestination
-	Script         func(ctx context.Context, stdout io.Writer, stderr io.Writer) error
-	DialogMessage  string
-	PromptInput    io.Reader
+	Name                string
+	DefaultNameTemplate string
+	Logger              *log.Logger
+	Args                []string
+	Description         string
+	ExecDate            time.Time
+	ConfirmDialog       *bool
+	LogDestination      LogDestination
+	Script              func(ctx context.Context, stdout io.Writer, stderr io.Writer) error
+	DialogMessage       string
+	PromptInput         io.Reader
 
 	inCompilation bool
 }
@@ -45,16 +53,22 @@ func (h *Hissatsu) Validate() error {
 	if h.Args == nil {
 		h.Args = os.Args
 	}
-	if h.Name == "" {
-		if len(h.Args) == 0 {
-			return errors.New("no arguments")
-		}
-		h.Name = filepath.Base(h.Args[0])
-	}
 	if h.ExecDate.IsZero() {
 		h.ExecDate = flextime.Now().In(time.Local)
 	}
 	h.ExecDate.Local().Truncate(24 * time.Hour)
+	if h.Name == "" {
+		if len(h.Args) == 0 {
+			return errors.New("no arguments")
+		}
+		if h.DefaultNameTemplate == "" {
+			h.Name = filepath.Base(h.Args[0])
+		} else {
+			if err := h.GenerateName(); err != nil {
+				return fmt.Errorf("generate name: %w", err)
+			}
+		}
+	}
 	if h.ConfirmDialog == nil {
 		h.ConfirmDialog = Bool(true)
 	}
@@ -83,6 +97,65 @@ func (h *Hissatsu) logger() *log.Logger {
 	return h.Logger
 }
 
+func (h *Hissatsu) GenerateName() error {
+	hashFunc := func(arg interface{}) string {
+		str, ok := arg.(string)
+		if !ok {
+			strs, ok := arg.([]string)
+			if !ok {
+				panic(fmt.Errorf("sha256: %#v is not string or []string", arg))
+			}
+			str = strings.Join(strs, " ")
+		}
+		return fmt.Sprintf("%x", sha256.Sum256([]byte(str)))
+	}
+	t, err := template.New("").Funcs(template.FuncMap{
+		"sha256": hashFunc,
+		"hash": func(arg interface{}) string {
+			sha256hash := hashFunc(arg)
+			return sha256hash[:7]
+		},
+		"arg": func(i int) string {
+			if i == 0 {
+				return h.Args[0]
+			}
+			if i < len(h.Args) {
+				return h.Args[i]
+			}
+			return ""
+		},
+		"last_arg": func() string {
+			return h.Args[len(h.Args)-1]
+		},
+		"env": os.Getenv,
+		"must_env": func(key string) string {
+			if value := os.Getenv(key); value == "" {
+				panic(fmt.Errorf("%s is not set", key))
+			} else {
+				return value
+			}
+		},
+	}).Parse(h.DefaultNameTemplate)
+	if err != nil {
+		return err
+	}
+	data := map[string]interface{}{
+		"Name":     h.Args[0],
+		"ExecDate": h.ExecDate.Format(dateFormant),
+		"Today":    flextime.Now().In(time.Local).Format(dateFormant),
+		"Args":     h.Args,
+	}
+	var buf bytes.Buffer
+	if err := t.Execute(&buf, data); err != nil {
+		return err
+	}
+	h.Name = buf.String()
+	if len(h.Name) == 0 {
+		return errors.New("generated name is empty")
+	}
+	return nil
+}
+
 func (h *Hissatsu) Execute() error {
 	return h.ExecuteWithContext(context.Background())
 }
@@ -107,8 +180,8 @@ func (h *Hissatsu) ExecuteWithContext(ctx context.Context) (err error) {
 		return
 	}
 	today := flextime.Now().In(time.Local).Truncate(24 * time.Hour)
-	if h.ExecDate.Format("2006-01-02") != today.Format("2006-01-02") {
-		err = fmt.Errorf("exec_date: %s is not today! (today: %s)", h.ExecDate.Format("2006-01-02"), today.Format("2006-01-02"))
+	if h.ExecDate.Format(dateFormant) != today.Format(dateFormant) {
+		err = fmt.Errorf("exec_date: %s is not today! (today: %s)", h.ExecDate.Format(dateFormant), today.Format(dateFormant))
 		return
 	}
 	if exists, checkErr := h.LogDestination.AlreadyExists(ctx); checkErr != nil {

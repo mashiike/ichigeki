@@ -139,9 +139,10 @@ func main() {
 	}
 
 	h := &ichigeki.Hissatsu{
-		Args:           args,
-		LogDestination: logDestination,
-		ConfirmDialog:  cfg.ConfirmDialog,
+		Args:                args,
+		DefaultNameTemplate: cfg.DefaultNameTemplate,
+		LogDestination:      logDestination,
+		ConfirmDialog:       cfg.ConfirmDialog,
 		Script: func(ctx context.Context, stdout io.Writer, stderr io.Writer) error {
 			env := os.Environ()
 			env = append(env, `ICHIGEKI_EXECUTION_ENV=ichigeki `+Version+``)
@@ -150,7 +151,10 @@ func main() {
 			cmd.Stdout = stdout
 			cmd.Stderr = stderr
 			cmd.Env = env
-			return fmt.Errorf("command runtime error: %w", cmd.Run())
+			if err := cmd.Run(); err != nil {
+				return fmt.Errorf("command runtime error: %w", err)
+			}
+			return nil
 		},
 	}
 
@@ -167,9 +171,10 @@ func main() {
 }
 
 type config struct {
-	ConfirmDialog *bool       `toml:"confirm_dialog"`
-	File          *fileConfig `toml:"file"`
-	S3            *s3Config   `toml:"s3"`
+	ConfirmDialog       *bool       `toml:"confirm_dialog"`
+	DefaultNameTemplate string      `toml:"default_name_template"`
+	File                *fileConfig `toml:"file"`
+	S3                  *s3Config   `toml:"s3"`
 }
 
 type s3Config struct {

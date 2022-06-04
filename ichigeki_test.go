@@ -90,6 +90,68 @@ func TestHissatsuDoubleRun(t *testing.T) {
 	require.EqualError(t, h.Execute(), fmt.Sprintf("Can't execute! Execution log destination [%s] already exists", logPath))
 }
 
+func TestHissatsuGenerateName(t *testing.T) {
+	restore := flextime.Set(time.Date(2022, 6, 5, 12, 0, 0, 0, time.Local))
+	defer restore()
+
+	os.Setenv("ICHIGEKI_TEST_ENV", "piyopiyo")
+	cases := []struct {
+		defaultNameTemplate string
+		args                []string
+		expected            string
+	}{
+		{
+			defaultNameTemplate: "{{ .Name }}-{{ .ExecDate }}-{{ .Args | hash }}",
+			args:                []string{"python", "hogehoge.py"},
+			expected:            "python-2022-06-05-54bb077",
+		},
+		{
+			defaultNameTemplate: "{{ .Name }}-{{ arg 1 }}{{ arg 2 }}",
+			args:                []string{"python", "hogehoge.py"},
+			expected:            "python-hogehoge.py",
+		},
+		{
+			defaultNameTemplate: "{{ .Name }}-{{ arg 1 }}{{ arg 2 }}",
+			args:                []string{"cat", "-b", "hoge.txt"},
+			expected:            "cat--bhoge.txt",
+		},
+		{
+			defaultNameTemplate: "{{ .Name }}-{{ .Args | sha256 }}-{{ last_arg }}",
+			args:                []string{"cat", "-b", "hoge.txt"},
+			expected:            "cat-e9325285d49ae478f549f16d378e357122e29fddb84e108df697e97324801597-hoge.txt",
+		},
+		{
+			defaultNameTemplate: "{{ .Name }}-{{ must_env `ICHIGEKI_TEST_ENV` }}",
+			args:                []string{"cat", "-b", "hoge.txt"},
+			expected:            "cat-piyopiyo",
+		},
+		{
+			defaultNameTemplate: "{{ .Name }}-{{ env `ICHIGEKI_TEST_ENV` }}-{{ .Today }}",
+			args:                []string{"cat", "-b", "hoge.txt"},
+			expected:            "cat-piyopiyo-2022-06-05",
+		},
+		{
+			defaultNameTemplate: "{{ .Name }}-{{ arg 1 }}-{{ .Args | hash }}",
+			args:                []string{"go", "test", "-race", "./..."},
+			expected:            "go-test-67937fa",
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.expected, func(t *testing.T) {
+			h := &ichigeki.Hissatsu{
+				DefaultNameTemplate: c.defaultNameTemplate,
+				Args:                c.args,
+				Script: func(_ context.Context, _ io.Writer, _ io.Writer) error {
+					return nil
+				},
+			}
+			require.NoError(t, h.Validate())
+			require.EqualValues(t, c.expected, h.Name)
+		})
+	}
+
+}
+
 func readFile(t *testing.T, path string) string {
 	t.Helper()
 	bs, err := os.ReadFile(path)

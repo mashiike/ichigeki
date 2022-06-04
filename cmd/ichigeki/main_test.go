@@ -34,3 +34,17 @@ func TestConfigLoadOnlyS3(t *testing.T) {
 	}
 	require.EqualValues(t, expected, cfg)
 }
+
+func TestConfigLoadDefaultNameTemplate(t *testing.T) {
+	cfg, err := loadConfig("testdata/default_name_template.toml")
+	require.NoError(t, err)
+	expected := &config{
+		ConfirmDialog:       ichigeki.Bool(false),
+		DefaultNameTemplate: "{{ .Name }}-{{ arg 1 }}-{{ .Args | hash }}",
+		S3: &s3Config{
+			Bucket:       "example-com",
+			ObjectPrefix: "hoge/",
+		},
+	}
+	require.EqualValues(t, expected, cfg)
+}
