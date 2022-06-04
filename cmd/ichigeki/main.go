@@ -63,9 +63,11 @@ func main() {
 		LogDestination:      ld,
 		ConfirmDialog:       cfg.ConfirmDialog,
 		ExecDate:            cfg.ExecDate,
-		Script: func(ctx context.Context, stdout io.Writer, stderr io.Writer) error {
+		Script: func(ctx ichigeki.Context, stdout io.Writer, stderr io.Writer) error {
 			env := os.Environ()
-			env = append(env, `ICHIGEKI_EXECUTION_ENV=ichigeki `+Version+``)
+			env = append(env, `ICHIGEKI_EXECUTION_ENV=ichigeki `+Version)
+			env = append(env, `ICHIGEKI_EXECUTION_NAME=`+ctx.Name)
+			env = append(env, `ICHIGEKI_EXECUTION_DATE=`+ctx.ExecDate)
 			cmd := exec.CommandContext(ctx, args[0], args[1:]...)
 			cmd.Stdin = os.Stdin
 			cmd.Stdout = stdout

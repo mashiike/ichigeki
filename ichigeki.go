@@ -30,6 +30,14 @@ type LogDestination interface {
 	Cleanup(ctx context.Context)
 }
 
+type Context struct {
+	context.Context
+	Name     string
+	ExecDate string
+}
+
+type ScriptFunc func(ctx Context, stdout io.Writer, stderr io.Writer) error
+
 type Hissatsu struct {
 	Name                string
 	DefaultNameTemplate string
@@ -39,7 +47,7 @@ type Hissatsu struct {
 	ExecDate            time.Time
 	ConfirmDialog       *bool
 	LogDestination      LogDestination
-	Script              func(ctx context.Context, stdout io.Writer, stderr io.Writer) error
+	Script              ScriptFunc
 	DialogMessage       string
 	PromptInput         io.Reader
 
@@ -237,7 +245,11 @@ func (h *Hissatsu) running(ctx context.Context) error {
 		h.LogDestination.Cleanup(ctx)
 	}()
 	err = h.Script(
-		ctx,
+		Context{
+			Context:  ctx,
+			Name:     h.Name,
+			ExecDate: h.ExecDate.Format(dateFormant),
+		},
 		io.MultiWriter(stdout, os.Stdout),
 		io.MultiWriter(stderr, os.Stderr),
 	)

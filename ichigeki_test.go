@@ -1,7 +1,6 @@
 package ichigeki_test
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"os"
@@ -22,7 +21,7 @@ func TestHissatsuNotToday(t *testing.T) {
 	h := &ichigeki.Hissatsu{
 		Name:     "test_run",
 		ExecDate: time.Date(2022, 6, 5, 0, 0, 0, 0, time.Local),
-		Script: func(_ context.Context, stdout io.Writer, _ io.Writer) error {
+		Script: func(_ ichigeki.Context, stdout io.Writer, _ io.Writer) error {
 			fmt.Fprintf(stdout, "run!")
 			return nil
 		},
@@ -40,7 +39,7 @@ func TestHissatsuLogAlreadyExists(t *testing.T) {
 		LogDestination: &ichigeki.LocalFile{
 			Path: "testdata/",
 		},
-		Script: func(_ context.Context, stdout io.Writer, _ io.Writer) error {
+		Script: func(_ ichigeki.Context, stdout io.Writer, _ io.Writer) error {
 			fmt.Fprintf(stdout, "run!")
 			return nil
 		},
@@ -55,7 +54,7 @@ func TestHissatsuPromptNo(t *testing.T) {
 	h := &ichigeki.Hissatsu{
 		Name:     "test_run",
 		ExecDate: time.Date(2022, 6, 5, 0, 0, 0, 0, time.Local),
-		Script: func(_ context.Context, stdout io.Writer, _ io.Writer) error {
+		Script: func(_ ichigeki.Context, stdout io.Writer, _ io.Writer) error {
 			fmt.Fprintf(stdout, "run!")
 			return nil
 		},
@@ -74,7 +73,7 @@ func TestHissatsuDoubleRun(t *testing.T) {
 		LogDestination: &ichigeki.LocalFile{
 			Path: tempDir,
 		},
-		Script: func(_ context.Context, stdout io.Writer, _ io.Writer) error {
+		Script: func(_ ichigeki.Context, stdout io.Writer, _ io.Writer) error {
 			fmt.Fprintf(stdout, "run!")
 			return nil
 		},
@@ -141,7 +140,7 @@ func TestHissatsuGenerateName(t *testing.T) {
 			h := &ichigeki.Hissatsu{
 				DefaultNameTemplate: c.defaultNameTemplate,
 				Args:                c.args,
-				Script: func(_ context.Context, _ io.Writer, _ io.Writer) error {
+				Script: func(_ ichigeki.Context, _ io.Writer, _ io.Writer) error {
 					return nil
 				},
 			}
