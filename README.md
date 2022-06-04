@@ -20,7 +20,8 @@ $ ichigeki --s3-url-prefix s3://ichigeki-example-com/logs/ --exec-date 2022-06-0
 or with default config `~/.config/ichigeki/default.toml`.
 
 ```toml
-confirm_dialog = false 
+confirm_dialog = false
+default_name_template = "{{ .Name }}{{ if gt (len .Args) 1}}-{{ .Args | hash }}{{ end }}"
 
 [s3]
 bucket = "ichigeki-example-com"
@@ -31,6 +32,8 @@ object_prefix = "logs/"
 $ ichigeki --exec-date 2022-06-01 -- your_command
 ```
 
+### ICHIGEKI_EXECUTION_ENVs 
+
 If you want to check whether the command is started using ichigeki on the side of the command to be started, you can check the environment variable named ICHIGEKI_EXECUTION_ENV. If version information is stored, it is invoked via ichigeki command.
 
 sample.sh
@@ -38,13 +41,42 @@ sample.sh
 #!/bin/bash
 
 echo $ICHIGEKI_EXECUTION_ENV
+echo $ICHIGEKI_EXECUTION_NAME
+echo $ICHIGEKI_EXECUTION_DATE
 ```
 
 ```shell
 $ ichigeki --s3-url-prefix s3://ichigeki-example-com/logs/  -- ./sample.sh           
-[info] log output to `s3://infra-dev/ichigeki-logs/sample.sh.log`
-ichigeki v0.2.0 
+[info] log output to `s3://ichigeki-example-com/logs/sample.sh.log`
+ichigeki v0.3.0 
 ```
+
+### default_name_template in `~/.config/ichigeki/default.toml`
+
+The default configuration file provides a template for dynamically determining the ichigeki name.
+This dynamic ichigeki name mechanism works only if you do not explicitly specify `-name` in the options
+This template follows the Go template notation [text/template](https://pkg.go.dev/text/template)
+
+The following data is passed to the template:
+
+- `.Name` : Default name if template is not specified
+- `.ExecDate`: `-exec-date` or the value of the execution date. format(2016-01-02)
+- `.Today`: the value of the execution date. format(2016-01-02)
+- `.Args`: A space-separated array of the commands passed. (type []string) 
+
+The following custom functions are passed:
+
+- `sha256` : Given a string or []string, compute the hexadecimal notation of sha256 hash
+- `hash` : First 7 characters of the hexadecimal notation of the sha256 hash
+- `arg` :  Value of the specified index of .Args. If not present, it will be an empty string. (sample {{ arg 1 }})
+- `last_arg` : Last element of .Args
+- `env` : Refers to the environment variable at the start of execution. If not set, an empty character will be returned.
+- `must_env` : Refers to the environment variable at the start of execution. If it is not set, it will panic.
+
+For example: `default_name_template` = `"{{ .Name }}{{ if gt (len .Args) 1}}-{{ .Args | hash }}{{ end }}"`
+
+`$ ichigeki -- ./sample.sh` => `sample.sh`
+`$ ichigeki -- go run cmd/migration/. --debug` => `go-4575533`
 
 ### Install 
 #### Homebrew (macOS and Linux)

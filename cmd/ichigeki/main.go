@@ -19,8 +19,8 @@ import (
 )
 
 const (
-	Version       = "current"
-	defaultConfig = ".config/ichigeki/default.toml"
+	Version           = "current"
+	defaultConfigPath = ".config/ichigeki/default.toml"
 )
 
 func main() {
@@ -29,148 +29,75 @@ func main() {
 		fmt.Fprintln(flag.CommandLine.Output(), "version:", Version)
 		flag.CommandLine.PrintDefaults()
 	}
-	var (
-		cfg             *config
-		name            string
-		s3URLPrefix     string
-		dir             string
-		noConfirmDialog bool
-		execDate        string
-	)
-	homeDir, err := os.UserHomeDir()
+	cfg, err := defaultConfig()
 	if err != nil {
-		log.Fatal("can not get user config dir: ", err)
+		log.Fatal("[error] ", err)
 	}
-	defaultConfigPath := filepath.Join(homeDir, defaultConfig)
-	if configExists(defaultConfigPath) {
-		var err error
-		cfg, err = loadConfig(defaultConfigPath)
-		if err != nil {
-			log.Fatal("default config load failed:", err)
-		}
+	cfg.SetFlags(flag.CommandLine)
+	flag.Parse()
+	if err := cfg.Restrict(); err != nil {
+		log.Fatal("[error] ", err)
+	}
+
+	var args []string
+	if flag.Arg(0) == "--" {
+		args = flag.Args()[1:]
 	} else {
-		cfg = &config{}
+		args = flag.Args()
+	}
+	if len(args) == 0 {
+		flag.CommandLine.Usage()
+		log.Fatal("[error] commands not found")
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-
-	flag.StringVar(&name, "name", "", "ichigeki name")
-	flag.StringVar(&s3URLPrefix, "s3-url-prefix", "", "log destination for s3")
-	flag.StringVar(&dir, "dir", "", "log destination for s3")
-	flag.StringVar(&execDate, "exec-date", "", "scheduled execution date")
-	flag.BoolVar(&noConfirmDialog, "no-confirm-dialog", false, "do confirm")
-	flag.Parse()
-	if noConfirmDialog {
-		cfg.ConfirmDialog = ichigeki.Bool(false)
+	ld, err := cfg.LogDestination(ctx)
+	if err != nil {
+		log.Fatal("[error] ", err)
 	}
-
-	if s3URLPrefix != "" {
-		u, err := url.Parse(s3URLPrefix)
-		if err != nil {
-			log.Fatal("s3-url-prefix can not parse:", err)
-		}
-		if u.Scheme != "s3" {
-			log.Fatal("s3-url-prefix is not s3 url format")
-		}
-		if cfg.S3 == nil {
-			cfg.S3 = &s3Config{}
-		}
-		cfg.S3.Bucket = u.Host
-		cfg.S3.ObjectPrefix = u.Path
-	}
-
-	if dir != "" {
-		if !filepath.IsAbs(dir) {
-			var err error
-			dir, err = filepath.Abs(dir)
-			if err != nil {
-				log.Fatal("can not convert to abs path:", err)
-			}
-			if cfg.File == nil {
-				cfg.File = &fileConfig{}
-			}
-			cfg.File.Dir = dir
-		}
-	}
-
-	logDestinations := make([]ichigeki.LogDestination, 0, 2)
-	if cfg.S3 != nil {
-		ld, err := s3log.New(ctx, &s3log.Config{
-			Bucket:       cfg.S3.Bucket,
-			ObjectPrefix: cfg.S3.ObjectPrefix,
-		})
-		if err != nil {
-			log.Fatal("s3 log destination:", err)
-		}
-		logDestinations = append(logDestinations, ld)
-	}
-	if cfg.File != nil {
-		logDestinations = append(logDestinations, &ichigeki.LocalFile{
-			Path:           cfg.File.Dir,
-			LogFilePostfix: cfg.File.LogFilePostfix,
-		})
-	}
-	if len(logDestinations) == 0 {
-		wd, err := os.Getwd()
-		if err != nil {
-			log.Fatal("can not get working directory:", err)
-		}
-		logDestinations = append(logDestinations, &ichigeki.LocalFile{
-			Path: wd,
-		})
-	}
-
-	var logDestination ichigeki.LogDestination
-	if len(logDestinations) == 1 {
-		logDestination = logDestinations[0]
-	} else {
-		logDestination = ichigeki.MultipleLogDestination(logDestinations)
-	}
-	originalArgs := flag.Args()
-	if flag.Arg(0) == "--" {
-		originalArgs = originalArgs[1:]
-	}
-	if len(originalArgs) == 0 {
-		flag.CommandLine.Usage()
-		log.Fatal("commands not found")
-	}
-	if name == "" {
-		name = filepath.Base(originalArgs[0])
-	}
-
 	h := &ichigeki.Hissatsu{
-		Name:           name,
-		LogDestination: logDestination,
-		ConfirmDialog:  cfg.ConfirmDialog,
-		Script: func(ctx context.Context, stdout io.Writer, stderr io.Writer) error {
+		Args:                args,
+		Name:                cfg.Name,
+		DefaultNameTemplate: cfg.DefaultNameTemplate,
+		LogDestination:      ld,
+		ConfirmDialog:       cfg.ConfirmDialog,
+		ExecDate:            cfg.ExecDate,
+		Script: func(ctx ichigeki.Context, stdout io.Writer, stderr io.Writer) error {
 			env := os.Environ()
-			env = append(env, `ICHIGEKI_EXECUTION_ENV=ichigeki `+Version+``)
-			cmd := exec.CommandContext(ctx, originalArgs[0], originalArgs[1:]...)
+			env = append(env, `ICHIGEKI_EXECUTION_ENV=ichigeki `+Version)
+			env = append(env, `ICHIGEKI_EXECUTION_NAME=`+ctx.Name)
+			env = append(env, `ICHIGEKI_EXECUTION_DATE=`+ctx.ExecDate)
+			cmd := exec.CommandContext(ctx, args[0], args[1:]...)
 			cmd.Stdin = os.Stdin
 			cmd.Stdout = stdout
 			cmd.Stderr = stderr
 			cmd.Env = env
-			return fmt.Errorf("command runtime error: %w", cmd.Run())
+			if err := cmd.Run(); err != nil {
+				return fmt.Errorf("command runtime error: %w", err)
+			}
+			return nil
 		},
 	}
 
-	if execDate != "" {
-		t, err := time.Parse("2006-01-02", execDate)
-		if err != nil {
-			log.Fatal("[error] exec date parse failed: ", err)
-		}
-		h.ExecDate = t
-	}
 	if err := h.ExecuteWithContext(ctx); err != nil {
 		log.Fatal("[error] ", err)
 	}
 }
 
 type config struct {
-	ConfirmDialog *bool       `toml:"confirm_dialog"`
-	File          *fileConfig `toml:"file"`
-	S3            *s3Config   `toml:"s3"`
+	Name                string      `toml:"-"`
+	ConfirmDialog       *bool       `toml:"confirm_dialog"`
+	DefaultNameTemplate string      `toml:"default_name_template"`
+	File                *fileConfig `toml:"file"`
+	S3                  *s3Config   `toml:"s3"`
+	ExecDate            time.Time   `toml:"-"`
+
+	optDir             string `toml:"-"`
+	optName            string `toml:"-"`
+	optS3URLPrefix     string `toml:"-"`
+	optNoConfirmDialog bool   `toml:"-"`
+	optExecDate        string `toml:"-"`
 }
 
 type s3Config struct {
@@ -200,4 +127,107 @@ func loadConfig(path string) (*config, error) {
 func configExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+func defaultConfig() (*config, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("can not get user config dir: %w", err)
+	}
+	defaultConfigPath := filepath.Join(homeDir, defaultConfigPath)
+	if configExists(defaultConfigPath) {
+		if cfg, err := loadConfig(defaultConfigPath); err != nil {
+			return nil, fmt.Errorf("default config load failed: %w", err)
+		} else {
+			return cfg, nil
+		}
+	}
+	return &config{}, nil
+}
+
+func (cfg *config) SetFlags(fs *flag.FlagSet) {
+	flag.StringVar(&cfg.optDir, "dir", "", "log destination for s3")
+	flag.StringVar(&cfg.optName, "name", "", "ichigeki name")
+	flag.StringVar(&cfg.optS3URLPrefix, "s3-url-prefix", "", "log destination for s3")
+	flag.StringVar(&cfg.optExecDate, "exec-date", "", "scheduled execution date")
+	flag.BoolVar(&cfg.optNoConfirmDialog, "no-confirm-dialog", false, "do confirm")
+}
+
+func (cfg *config) Restrict() error {
+	cfg.Name = cfg.optName
+	if cfg.optNoConfirmDialog {
+		cfg.ConfirmDialog = ichigeki.Bool(false)
+	}
+
+	if cfg.optS3URLPrefix != "" {
+		u, err := url.Parse(cfg.optS3URLPrefix)
+		if err != nil {
+			return fmt.Errorf("s3-url-prefix can not parse: %w", err)
+		}
+		if u.Scheme != "s3" {
+			return fmt.Errorf("s3-url-prefix is not s3 url format")
+		}
+		if cfg.S3 == nil {
+			cfg.S3 = &s3Config{}
+		}
+		cfg.S3.Bucket = u.Host
+		cfg.S3.ObjectPrefix = u.Path
+	}
+
+	if cfg.optDir != "" {
+		if !filepath.IsAbs(cfg.optDir) {
+			var err error
+			cfg.optDir, err = filepath.Abs(cfg.optDir)
+			if err != nil {
+				return fmt.Errorf("can not convert to abs path: %w", err)
+			}
+			if cfg.File == nil {
+				cfg.File = &fileConfig{}
+			}
+			cfg.File.Dir = cfg.optDir
+		}
+	}
+
+	if cfg.optExecDate != "" {
+		t, err := time.Parse("2006-01-02", cfg.optExecDate)
+		if err != nil {
+			return fmt.Errorf("exec date parse failed: %w", err)
+		}
+		cfg.ExecDate = t
+	}
+	return nil
+}
+
+func (cfg *config) LogDestination(ctx context.Context) (ichigeki.LogDestination, error) {
+	logDestinations := make([]ichigeki.LogDestination, 0, 2)
+	if cfg.S3 != nil && cfg.S3.Bucket != "" {
+		ld, err := s3log.New(ctx, &s3log.Config{
+			Bucket:       cfg.S3.Bucket,
+			ObjectPrefix: cfg.S3.ObjectPrefix,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("s3 log destination: %w", err)
+		}
+		logDestinations = append(logDestinations, ld)
+	}
+	if cfg.File != nil && cfg.File.Dir != "" {
+		logDestinations = append(logDestinations, &ichigeki.LocalFile{
+			Path:           cfg.File.Dir,
+			LogFilePostfix: cfg.File.LogFilePostfix,
+		})
+	}
+	if len(logDestinations) == 0 {
+		wd, err := os.Getwd()
+		if err != nil {
+			return nil, fmt.Errorf("can not get working directory: %w", err)
+		}
+		logDestinations = append(logDestinations, &ichigeki.LocalFile{
+			Path: wd,
+		})
+	}
+
+	if len(logDestinations) == 1 {
+		return logDestinations[0], nil
+	}
+	return ichigeki.MultipleLogDestination(logDestinations), nil
 }

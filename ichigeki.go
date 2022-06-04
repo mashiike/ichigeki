@@ -2,7 +2,9 @@ package ichigeki
 
 import (
 	"bufio"
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -10,9 +12,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/Songmu/flextime"
+)
+
+const (
+	dateFormant = "2006-01-02"
 )
 
 type LogDestination interface {
@@ -23,15 +30,26 @@ type LogDestination interface {
 	Cleanup(ctx context.Context)
 }
 
+type Context struct {
+	context.Context
+	Name     string
+	ExecDate string
+}
+
+type ScriptFunc func(ctx Context, stdout io.Writer, stderr io.Writer) error
+
 type Hissatsu struct {
-	Name           string
-	Description    string
-	ExecDate       time.Time
-	ConfirmDialog  *bool
-	LogDestination LogDestination
-	Script         func(ctx context.Context, stdout io.Writer, stderr io.Writer) error
-	DialogMessage  string
-	PromptInput    io.Reader
+	Name                string
+	DefaultNameTemplate string
+	Logger              *log.Logger
+	Args                []string
+	Description         string
+	ExecDate            time.Time
+	ConfirmDialog       *bool
+	LogDestination      LogDestination
+	Script              ScriptFunc
+	DialogMessage       string
+	PromptInput         io.Reader
 
 	inCompilation bool
 }
@@ -40,19 +58,30 @@ func (h *Hissatsu) Validate() error {
 	if h.Script == nil {
 		return errors.New("Script is required")
 	}
-	if h.Name == "" {
-		h.Name = filepath.Base(os.Args[0])
+	if h.Args == nil {
+		h.Args = os.Args
 	}
 	if h.ExecDate.IsZero() {
 		h.ExecDate = flextime.Now().In(time.Local)
 	}
 	h.ExecDate.Local().Truncate(24 * time.Hour)
+	if h.Name == "" {
+		if len(h.Args) == 0 {
+			return errors.New("no arguments")
+		}
+		h.Name = filepath.Base(h.Args[0])
+		if h.DefaultNameTemplate != "" {
+			if err := h.GenerateName(); err != nil {
+				return fmt.Errorf("generate name: %w", err)
+			}
+		}
+	}
 	if h.ConfirmDialog == nil {
 		h.ConfirmDialog = Bool(true)
 	}
 	if h.LogDestination == nil {
 		h.LogDestination = &LocalFile{}
-		log.Println("[warn] LogDestination is not specified. use default LocalFile")
+		h.logger().Println("[warn] LogDestination is not specified. use default LocalFile")
 	}
 	h.LogDestination.SetName(h.Name)
 
@@ -64,6 +93,72 @@ func (h *Hissatsu) Validate() error {
 	}
 	if h.PromptInput == nil {
 		h.PromptInput = os.Stdin
+	}
+	return nil
+}
+
+func (h *Hissatsu) logger() *log.Logger {
+	if h.Logger == nil {
+		return log.Default()
+	}
+	return h.Logger
+}
+
+func (h *Hissatsu) GenerateName() error {
+	hashFunc := func(arg interface{}) string {
+		str, ok := arg.(string)
+		if !ok {
+			strs, ok := arg.([]string)
+			if !ok {
+				panic(fmt.Errorf("sha256: %#v is not string or []string", arg))
+			}
+			str = strings.Join(strs, " ")
+		}
+		return fmt.Sprintf("%x", sha256.Sum256([]byte(str)))
+	}
+	t, err := template.New("").Funcs(template.FuncMap{
+		"sha256": hashFunc,
+		"hash": func(arg interface{}) string {
+			sha256hash := hashFunc(arg)
+			return sha256hash[:7]
+		},
+		"arg": func(i int) string {
+			if i == 0 {
+				return h.Args[0]
+			}
+			if i < len(h.Args) {
+				return h.Args[i]
+			}
+			return ""
+		},
+		"last_arg": func() string {
+			return h.Args[len(h.Args)-1]
+		},
+		"env": os.Getenv,
+		"must_env": func(key string) string {
+			if value := os.Getenv(key); value == "" {
+				panic(fmt.Errorf("%s is not set", key))
+			} else {
+				return value
+			}
+		},
+	}).Parse(h.DefaultNameTemplate)
+	if err != nil {
+		return err
+	}
+	data := map[string]interface{}{
+		"Name":     h.Name,
+		"ExecDate": h.ExecDate.Format(dateFormant),
+		"Today":    flextime.Now().In(time.Local).Format(dateFormant),
+		"Args":     h.Args,
+	}
+	var buf bytes.Buffer
+	if err := t.Execute(&buf, data); err != nil {
+		return err
+	}
+	h.Name = buf.String()
+	if len(h.Name) == 0 {
+		return errors.New("generated name is empty")
 	}
 	return nil
 }
@@ -80,10 +175,10 @@ func (h *Hissatsu) ExecuteWithContext(ctx context.Context) (err error) {
 		if rec := recover(); rec != nil {
 			switch {
 			case h.inCompilation == false:
-				log.Println("[info] script is not complete, but panicked")
+				h.logger().Println("[info] script is not complete, but panicked")
 				panic(rec)
 			default:
-				log.Printf("[error] %s", rec)
+				h.logger().Printf("[error] %s", rec)
 			}
 		}
 	}()
@@ -92,8 +187,8 @@ func (h *Hissatsu) ExecuteWithContext(ctx context.Context) (err error) {
 		return
 	}
 	today := flextime.Now().In(time.Local).Truncate(24 * time.Hour)
-	if h.ExecDate.Format("2006-01-02") != today.Format("2006-01-02") {
-		err = fmt.Errorf("exec_date: %s is not today! (today: %s)", h.ExecDate.Format("2006-01-02"), today.Format("2006-01-02"))
+	if h.ExecDate.Format(dateFormant) != today.Format(dateFormant) {
+		err = fmt.Errorf("exec_date: %s is not today! (today: %s)", h.ExecDate.Format(dateFormant), today.Format(dateFormant))
 		return
 	}
 	if exists, checkErr := h.LogDestination.AlreadyExists(ctx); checkErr != nil {
@@ -104,7 +199,7 @@ func (h *Hissatsu) ExecuteWithContext(ctx context.Context) (err error) {
 		return
 	}
 
-	log.Printf("[info] log output to `%s`\n", h.LogDestination.String())
+	h.logger().Printf("[info] log output to `%s`\n", h.LogDestination.String())
 	if *h.ConfirmDialog {
 		fmt.Fprintf(os.Stderr, h.DialogMessage+" [y/n]:", h.Name)
 		reader := bufio.NewReader(h.PromptInput)
@@ -136,7 +231,7 @@ func (h *Hissatsu) running(ctx context.Context) error {
 	}
 
 	var err error
-	fmt.Fprintln(w, "# This log is generated dy github.com/mashiike/ichigeki.Hissatsu")
+	fmt.Fprintln(w, "# This log is generated by github.com/mashiike/ichigeki.Hissatsu")
 	fmt.Fprintf(w, "name: %s\n", h.Name)
 	fmt.Fprintf(w, "start: %s\n", flextime.Now().In(time.Local).Format(time.RFC3339))
 	fmt.Fprint(w, "---\n")
@@ -149,7 +244,11 @@ func (h *Hissatsu) running(ctx context.Context) error {
 		h.LogDestination.Cleanup(ctx)
 	}()
 	err = h.Script(
-		ctx,
+		Context{
+			Context:  ctx,
+			Name:     h.Name,
+			ExecDate: h.ExecDate.Format(dateFormant),
+		},
 		io.MultiWriter(stdout, os.Stdout),
 		io.MultiWriter(stderr, os.Stderr),
 	)
