@@ -134,6 +134,16 @@ func TestHissatsuGenerateName(t *testing.T) {
 			args:                []string{"go", "test", "-race", "./..."},
 			expected:            "go-test-67937fa",
 		},
+		{
+			defaultNameTemplate: "{{ .Name }}{{ if gt (len .Args) 1}}-{{ .Args | hash }}{{ end }}",
+			args:                []string{"./migration.sh"},
+			expected:            "migration.sh",
+		},
+		{
+			defaultNameTemplate: "{{ .Name }}{{ if gt (len .Args) 1}}-{{ .Args | hash }}{{ end }}",
+			args:                []string{"go", "run", "cmd/migration/.", "--debug"},
+			expected:            "migration.sh",
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.expected, func(t *testing.T) {
