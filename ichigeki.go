@@ -69,9 +69,8 @@ func (h *Hissatsu) Validate() error {
 		if len(h.Args) == 0 {
 			return errors.New("no arguments")
 		}
-		if h.DefaultNameTemplate == "" {
-			h.Name = filepath.Base(h.Args[0])
-		} else {
+		h.Name = filepath.Base(h.Args[0])
+		if h.DefaultNameTemplate != "" {
 			if err := h.GenerateName(); err != nil {
 				return fmt.Errorf("generate name: %w", err)
 			}
@@ -148,7 +147,7 @@ func (h *Hissatsu) GenerateName() error {
 		return err
 	}
 	data := map[string]interface{}{
-		"Name":     h.Args[0],
+		"Name":     h.Name,
 		"ExecDate": h.ExecDate.Format(dateFormant),
 		"Today":    flextime.Now().In(time.Local).Format(dateFormant),
 		"Args":     h.Args,
