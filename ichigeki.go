@@ -25,6 +25,7 @@ type LogDestination interface {
 
 type Hissatsu struct {
 	Name           string
+	Logger         *log.Logger
 	Description    string
 	ExecDate       time.Time
 	ConfirmDialog  *bool
@@ -52,7 +53,7 @@ func (h *Hissatsu) Validate() error {
 	}
 	if h.LogDestination == nil {
 		h.LogDestination = &LocalFile{}
-		log.Println("[warn] LogDestination is not specified. use default LocalFile")
+		h.logger().Println("[warn] LogDestination is not specified. use default LocalFile")
 	}
 	h.LogDestination.SetName(h.Name)
 
@@ -68,6 +69,13 @@ func (h *Hissatsu) Validate() error {
 	return nil
 }
 
+func (h *Hissatsu) logger() *log.Logger {
+	if h.Logger == nil {
+		return log.Default()
+	}
+	return h.Logger
+}
+
 func (h *Hissatsu) Execute() error {
 	return h.ExecuteWithContext(context.Background())
 }
@@ -80,10 +88,10 @@ func (h *Hissatsu) ExecuteWithContext(ctx context.Context) (err error) {
 		if rec := recover(); rec != nil {
 			switch {
 			case h.inCompilation == false:
-				log.Println("[info] script is not complete, but panicked")
+				h.logger().Println("[info] script is not complete, but panicked")
 				panic(rec)
 			default:
-				log.Printf("[error] %s", rec)
+				h.logger().Printf("[error] %s", rec)
 			}
 		}
 	}()
@@ -104,7 +112,7 @@ func (h *Hissatsu) ExecuteWithContext(ctx context.Context) (err error) {
 		return
 	}
 
-	log.Printf("[info] log output to `%s`\n", h.LogDestination.String())
+	h.logger().Printf("[info] log output to `%s`\n", h.LogDestination.String())
 	if *h.ConfirmDialog {
 		fmt.Fprintf(os.Stderr, h.DialogMessage+" [y/n]:", h.Name)
 		reader := bufio.NewReader(h.PromptInput)
