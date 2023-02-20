@@ -1,8 +1,9 @@
 github.com/Songmu/flextime v0.1.0 h1:sss5IALl84LbvU/cS5D1cKNd5ffT94N2BZwC+esgAJI=
 github.com/Songmu/flextime v0.1.0/go.mod h1:ofUSZ/qj7f1BfQQ6rEH4ovewJ0SZmLOjBF1xa8iE87Q=
 github.com/aws/aws-sdk-go-v2 v1.16.5/go.mod h1:Wh7MEsmEApyL5hrWzpDkba4gwAPc5/piwLVLFnCxp48=
-github.com/aws/aws-sdk-go-v2 v1.17.3 h1:shN7NlnVzvDUgPQ+1rLMSxY8OWRNDRYtiqe0p/PgrhY=
 github.com/aws/aws-sdk-go-v2 v1.17.3/go.mod h1:uzbQtefpm44goOPmdKyAlXSNcwlRgF3ePWVW6EtJvvw=
+github.com/aws/aws-sdk-go-v2 v1.17.5 h1:TzCUW1Nq4H8Xscph5M/skINUitxM5UBAyvm2s7XBzL4=
+github.com/aws/aws-sdk-go-v2 v1.17.5/go.mod h1:uzbQtefpm44goOPmdKyAlXSNcwlRgF3ePWVW6EtJvvw=
 github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.4.2 h1:LFOGNUQxc/8BlhA4FD+JdYjJKQK6tsz9Xiuh+GUTKAQ=
 github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.4.2/go.mod h1:u/38zebMi809w7YFnqY/07Tw/FSs6DGhPD95Xiig7XQ=
 github.com/aws/aws-sdk-go-v2/config v1.15.10/go.mod h1:XL4DzwzWdwXBzKdwMdpLkMIaGEQCYRQyzA4UnJaUnNk=
